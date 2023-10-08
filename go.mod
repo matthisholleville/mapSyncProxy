@@ -1,6 +1,6 @@
 module github.com/matthisholleville/mapsyncproxy
 
-go 1.21.2
+go 1.20
 
 require (
 	cloud.google.com/go/storage v1.33.0

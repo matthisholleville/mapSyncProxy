@@ -16,14 +16,14 @@ func New() *ServerMetrics {
 
 	serverMetrics.MapEntriesTotalCount = createAndRegisterCounter(
 		"mapsyncproxy_haproxy_mapentries_total",
-		"How many MapEntries processed, partitioned by status.",
-		[]string{"status"},
+		"How many MapEntries processed, partitioned by status and map_name.",
+		[]string{"status", "map_name"},
 	)
 
 	serverMetrics.SynchronizationTotalCount = createAndRegisterCounter(
 		"mapsyncproxy_synchronization_total",
-		"How many Synchronization processed, partitioned by status.",
-		[]string{"status"},
+		"How many Synchronization processed, partitioned by status and map_name.",
+		[]string{"status", "map_name"},
 	)
 
 	return serverMetrics

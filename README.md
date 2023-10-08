@@ -18,3 +18,58 @@ This proxy can be used for various purposes:
 3. Ensure the reliable updating of Map files.
 
 ## Demo
+
+https://github.com/matthisholleville/mapSyncProxy/assets/99146727/b85717b4-f90f-42b2-a7b9-6279caa28f82
+
+## Local development
+
+### 1. Requirements
+
+- Docker
+- Make
+- Python3
+- Gsutil
+- Go
+
+### 2. Configuration de HAProxy
+
+To build and run a Docker container with the Dataplane API, execute the following command:
+
+```bash
+make setup
+```
+
+To verify that the container is running correctly, open a browser and navigate to the following URL: `http://127.0.0.1:5555/v2/docs`. You should see the Dataplane API documentation.
+
+### 3. Starting the server
+
+To start the server, execute the following command:
+
+```bash
+make run
+```
+
+You should see a list of metrics at the following URL: `http://localhost:8000/metrics`.
+
+### 4. Pushing the Local File to a GCS Bucket
+
+Before pushing the file to a bucket, ensure that it is accessible from your script execution context. To initiate the file push, execute the following command:
+
+```bash
+make push
+```
+
+### 5. Initiating Synchronization
+
+To start synchronization, execute the following command:
+
+```bash
+make synchronize map_name=rate-limits bucket=$MY_BUCKET_NAME
+```
+
+If everything is successful, you should see the following message:
+
+```bash
+...
+{"status":"synchronization success."}
+```

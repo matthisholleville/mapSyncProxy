@@ -25,7 +25,6 @@ func (r *SynchronizeRequestBody) AreFieldsNotEmpty() bool {
 
 func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *metrics.ServerMetrics) (err error) {
 
-	m.SynchronizationTotalCount.With(prometheus.Labels{"status": "processed"}).Inc()
 	requestBody := SynchronizeRequestBody{}
 
 	if err := c.Bind(&requestBody); err != nil {
@@ -36,17 +35,19 @@ func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *
 		return c.JSON(http.StatusBadRequest, jsonResponse("All fields (map_name, bucket_name, bucket_file_name) are required in the request body."))
 	}
 
+	m.SynchronizationTotalCount.With(setMetricsStatusLabels("processed", requestBody.MapName)).Inc()
+
 	// Get MapEntries file from GCS
 	gcsEntries, err := getGCSJsonFile(g, requestBody.BucketName, requestBody.BucketFileName)
 	if err != nil {
-		m.SynchronizationTotalCount.With(prometheus.Labels{"status": "error"}).Inc()
+		m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
 	}
 
 	// Get HAProxy entries from map
 	haproxyEntries, err := h.GetMapEntries(requestBody.MapName)
 	if err != nil {
-		m.SynchronizationTotalCount.With(prometheus.Labels{"status": "error"}).Inc()
+		m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The entries from the HAProxy Map file could not be retrieved or interpreted."))
 	}
 
@@ -55,10 +56,10 @@ func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *
 	for _, entrie := range entriesToBeCreated {
 		_, err = h.CreateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(prometheus.Labels{"status": "error"}).Inc()
+			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be created.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(prometheus.Labels{"status": "created"}).Inc()
+		m.MapEntriesTotalCount.With(setMetricsStatusLabels("created", requestBody.MapName)).Inc()
 	}
 
 	// If Not Exist in gcs file DeleteMap
@@ -66,10 +67,10 @@ func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *
 	for _, entrie := range entriesToBeDeleted {
 		_, err = h.DeleteMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(prometheus.Labels{"status": "error"}).Inc()
+			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be deleted.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(prometheus.Labels{"status": "deleted"}).Inc()
+		m.MapEntriesTotalCount.With(setMetricsStatusLabels("deleted", requestBody.MapName)).Inc()
 	}
 
 	// If Exist and not already processed UpdateMap
@@ -78,14 +79,14 @@ func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *
 	for _, entrie := range entriesToBeUpdated {
 		_, err = h.UpdateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(prometheus.Labels{"status": "error"}).Inc()
+			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be updated.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(prometheus.Labels{"status": "updated"}).Inc()
+		m.MapEntriesTotalCount.With(setMetricsStatusLabels("updated", requestBody.MapName)).Inc()
 	}
 
 	// Return success
-	m.SynchronizationTotalCount.With(prometheus.Labels{"status": "success"}).Inc()
+	m.SynchronizationTotalCount.With(setMetricsStatusLabels("success", requestBody.MapName)).Inc()
 	return c.JSON(http.StatusOK, jsonResponse("synchronization success."))
 }
 
@@ -122,4 +123,8 @@ func findDifference(array1, array2 []haproxy.MapEntrie) []haproxy.MapEntrie {
 	}
 
 	return difference
+}
+
+func setMetricsStatusLabels(status, mapName string) prometheus.Labels {
+	return prometheus.Labels{"status": status, "map_name": mapName}
 }
