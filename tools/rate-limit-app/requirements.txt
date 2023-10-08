@@ -1,0 +1,5 @@
+requests
+rich
+typer[all]
+tqdm
+scapy
