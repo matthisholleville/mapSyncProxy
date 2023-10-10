@@ -49,6 +49,12 @@ func Synchronize(c echo.Context) (err error) {
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
 	}
 
+	// Check if duplicate keys
+	if hasDuplicateKeys(*gcsEntries) {
+		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file contains duplicate keys."))
+	}
+
 	// Get HAProxy entries from map
 	haproxyEntries, err := mapSyncContext.HAProxyClient.GetMapEntries(requestBody.MapName)
 	if err != nil {
