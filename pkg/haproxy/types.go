@@ -1,12 +1,14 @@
 package haproxy
 
-import "net/http"
+import (
+	"github.com/go-resty/resty/v2"
+)
 
 type Client struct {
 	username   string
 	password   string
 	serverIP   string
-	HTTPClient *http.Client
+	HTTPClient *resty.Client
 }
 
 type errorResponse struct {

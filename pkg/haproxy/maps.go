@@ -1,91 +1,115 @@
 package haproxy
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
-var controllerUrl = "services/haproxy/runtime/maps_entries"
+var controllerUrl = "/services/haproxy/runtime/maps_entries"
 
 func (c *Client) GetMapEntries(mapName string) (*[]MapEntrie, error) {
+	mapEntrie := []MapEntrie{}
 	url := fmt.Sprintf(
-		"%s/%s?map=%s",
-		c.serverIP,
+		"%s?map=%s",
 		controllerUrl,
 		mapName,
 	)
-	req, err := http.NewRequest("GET", url, nil)
+	resp, err := c.HTTPClient.R().
+		SetResult(&mapEntrie).
+		Get(url)
+
 	if err != nil {
-		return nil, err
-	}
-	res := []MapEntrie{}
-	if err := c.executeRequest(req, &res); err != nil {
-		return nil, err
+		log.Debug().Err(err).Msg("Error while calling DataplaneAPI.")
+		return &mapEntrie, err
 	}
 
-	return &res, nil
+	if resp.StatusCode() != http.StatusOK {
+		log.Debug().Msgf("Error while getting mapEntrie. Status code %d", resp.StatusCode())
+		return &mapEntrie, fmt.Errorf("Error while getting mapEntrie: %s", resp.Status())
+	} else if len(mapEntrie) == 0 {
+		log.Debug().Msgf("No map entrie found in %s", mapName)
+		return &mapEntrie, fmt.Errorf("No map entrie found in %s", mapName)
+	}
+
+	return &mapEntrie, nil
 
 }
 
 func (c *Client) CreateMapEntrie(entrie *MapEntrie, mapName string) (*MapEntrie, error) {
 	url := fmt.Sprintf(
-		"%s/%s?map=%s&force_sync=true",
-		c.serverIP,
+		"%s?map=%s&force_sync=true",
 		controllerUrl,
 		mapName,
 	)
-	bodyStr, _ := json.Marshal(entrie)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyStr))
+	mapEntrie := MapEntrie{}
+	resp, err := c.HTTPClient.R().
+		SetBody(entrie).
+		SetResult(mapEntrie).
+		Post(url)
+
 	if err != nil {
-		return nil, err
+		log.Debug().Err(err).Msg("Error while calling DataplaneAPI.")
+		return &mapEntrie, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	res := MapEntrie{}
-	if err := c.executeRequest(req, &res); err != nil {
-		return nil, err
+
+	if resp.StatusCode() != http.StatusCreated {
+		log.Debug().Msgf("Error while creating mapEntrie. Status code %d", resp.StatusCode())
+		return &mapEntrie, fmt.Errorf("Error while creating mapEntrie: %s", resp.Status())
 	}
-	return &res, nil
+
+	return &mapEntrie, nil
 }
 
 func (c *Client) UpdateMapEntrie(entrie *MapEntrie, mapName string) (*MapEntrie, error) {
 	url := fmt.Sprintf(
-		"%s/%s/%s?map=%s&force_sync=true",
-		c.serverIP,
+		"%s/%s?map=%s&force_sync=true",
 		controllerUrl,
 		encodeUrl(entrie.Key),
 		mapName,
 	)
-	bodyStr, _ := json.Marshal(entrie)
-	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(bodyStr))
+	mapEntrie := MapEntrie{}
+	resp, err := c.HTTPClient.R().
+		SetBody(entrie).
+		SetResult(mapEntrie).
+		Put(url)
+
 	if err != nil {
-		return nil, err
+		log.Debug().Err(err).Msg("Error while calling DataplaneAPI.")
+		return &mapEntrie, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	res := MapEntrie{}
-	if err := c.executeRequest(req, &res); err != nil {
-		return nil, err
+
+	if resp.StatusCode() != http.StatusOK {
+		log.Debug().Msgf("Error while updating mapEntrie. Status code %d", resp.StatusCode())
+		return &mapEntrie, fmt.Errorf("Error while updating mapEntrie: %s", resp.Status())
 	}
-	return &res, nil
+
+	return &mapEntrie, nil
 }
 
 func (c *Client) DeleteMapEntrie(entrie *MapEntrie, mapName string) (*MapEntrie, error) {
 	url := fmt.Sprintf(
-		"%s/%s/%s?map=%s&force_sync=true",
-		c.serverIP,
+		"%s/%s?map=%s&force_sync=true",
 		controllerUrl,
 		encodeUrl(entrie.Key),
 		mapName,
 	)
-	req, err := http.NewRequest("DELETE", url, nil)
+	mapEntrie := MapEntrie{}
+	resp, err := c.HTTPClient.R().
+		SetBody(entrie).
+		SetResult(mapEntrie).
+		Delete(url)
+
 	if err != nil {
-		return nil, err
+		log.Debug().Err(err).Msg("Error while deleting DataplaneAPI.")
+		return &mapEntrie, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	res := MapEntrie{}
-	if err := c.executeRequest(req, &res); err != nil {
-		return nil, err
+
+	if resp.StatusCode() != http.StatusNoContent {
+		log.Debug().Msgf("Error while deleting mapEntrie. Status code %d", resp.StatusCode())
+		return &mapEntrie, fmt.Errorf("Error while deleting mapEntrie: %s", resp.Status())
 	}
-	return &res, nil
+
+	return &mapEntrie, nil
 }
