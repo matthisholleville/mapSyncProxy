@@ -28,9 +28,6 @@ func (c *Client) GetMapEntries(mapName string) (*[]MapEntrie, error) {
 	if resp.StatusCode() != http.StatusOK {
 		log.Debug().Msgf("Error while getting mapEntrie. Status code %d", resp.StatusCode())
 		return &mapEntrie, fmt.Errorf("Error while getting mapEntrie: %s", resp.Status())
-	} else if len(mapEntrie) == 0 {
-		log.Debug().Msgf("No map entrie found in %s", mapName)
-		return &mapEntrie, fmt.Errorf("No map entrie found in %s", mapName)
 	}
 
 	return &mapEntrie, nil

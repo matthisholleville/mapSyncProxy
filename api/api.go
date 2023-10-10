@@ -28,6 +28,9 @@ func Server(ctx context.Context, sigs chan os.Signal) {
 	viper.SetDefault("DATAPLANE_PASSWORD", "adminpwd")
 	viper.SetDefault("DATAPLANE_HOST", "127.0.0.1:5555")
 
+	dataplaneApiHost := viper.GetString("DATAPLANE_HOST")
+	log.Debug().Msgf("Listening to HAProxy Dataplane API on %s", dataplaneApiHost)
+
 	s := &client.MapSyncProxyAPI{
 		Echo: echo.New(),
 		HAProxyClient: haproxy.NewClient(
@@ -39,6 +42,8 @@ func Server(ctx context.Context, sigs chan os.Signal) {
 		GCSClientWrapper: gcs.NewClient(),
 		ServerMetrics:    metrics.New(),
 	}
+
+	s.Echo.HideBanner = true
 
 	s.Echo.Use(middleware.Logger())
 	//CORS

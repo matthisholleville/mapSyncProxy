@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -30,8 +29,6 @@ func GenerateJsonFromMap(c echo.Context) (err error) {
 		return c.JSON(http.StatusInternalServerError, jsonResponse("'map_name' param cannot be empty."))
 
 	}
-
-	fmt.Println(mapName)
 
 	mapSyncContext.ServerMetrics.GenerateJsonFromMapTotalCount.With(setMetricsStatusLabels("processed", mapName)).Inc()
 
