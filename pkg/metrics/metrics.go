@@ -7,8 +7,9 @@ import (
 )
 
 type ServerMetrics struct {
-	MapEntriesTotalCount      *prometheus.CounterVec
-	SynchronizationTotalCount *prometheus.CounterVec
+	MapEntriesTotalCount          *prometheus.CounterVec
+	SynchronizationTotalCount     *prometheus.CounterVec
+	GenerateJsonFromMapTotalCount *prometheus.CounterVec
 }
 
 func New() *ServerMetrics {
@@ -23,6 +24,12 @@ func New() *ServerMetrics {
 	serverMetrics.SynchronizationTotalCount = createAndRegisterCounter(
 		"mapsyncproxy_synchronization_total",
 		"How many Synchronization processed, partitioned by status and map_name.",
+		[]string{"status", "map_name"},
+	)
+
+	serverMetrics.GenerateJsonFromMapTotalCount = createAndRegisterCounter(
+		"mapsyncproxy_generate_total",
+		"How many GenerateJsonFromMap processed, partitioned by status and map_name.",
 		[]string{"status", "map_name"},
 	)
 

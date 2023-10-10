@@ -19,8 +19,7 @@ func API(s *client.MapSyncProxyAPI) {
 	})
 	v1Api := s.Echo.Group("/v1")
 
-	// synchronize endpoint
-	v1Api.POST("/synchronize", func(c echo.Context) error {
-		return handlers.Synchronize(c)
-	})
+	// map endpoints
+	v1Api.POST("/map/:mapName/synchronize", handlers.Synchronize)
+	v1Api.GET("/map/:mapName/generate", handlers.GenerateJsonFromMap)
 }

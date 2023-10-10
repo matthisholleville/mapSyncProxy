@@ -55,7 +55,39 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/synchronize": {
+        "/v1/map/{map_name}/generate": {
+            "get": {
+                "description": "Generate json file from map file.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Map"
+                ],
+                "summary": "Generate json file from map file.",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Map name",
+                        "name": "map_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
+                    }
+                }
+            }
+        },
+        "/v1/map/{map_name}/synchronize": {
             "post": {
                 "description": "Synchronize GCS file to an HAProxy map file.",
                 "consumes": [
@@ -65,7 +97,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Synchronization"
+                    "Map"
                 ],
                 "summary": "Synchronize GCS file to an HAProxy map file.",
                 "parameters": [
@@ -77,6 +109,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handlers.SynchronizeRequestBody"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Map name",
+                        "name": "map_name",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -95,17 +134,13 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "bucket_file_name",
-                "bucket_name",
-                "map_name"
+                "bucket_name"
             ],
             "properties": {
                 "bucket_file_name": {
                     "type": "string"
                 },
                 "bucket_name": {
-                    "type": "string"
-                },
-                "map_name": {
                     "type": "string"
                 }
             }
