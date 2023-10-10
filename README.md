@@ -19,7 +19,7 @@ This proxy can be used for various purposes:
 
 ## Demo
 
-https://github.com/matthisholleville/mapSyncProxy/assets/99146727/b85717b4-f90f-42b2-a7b9-6279caa28f82
+https://github.com/matthisholleville/mapSyncProxy/assets/99146727/63d140d9-c7ce-4d55-a460-7fe9dc4d96e0
 
 ## Local development
 
