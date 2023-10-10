@@ -10,9 +10,12 @@ push:
 	gsutil cp ./tools/files/gcs.json gs://$(bucket)/gcs.json
 
 synchronize:
-	curl -X POST http://localhost:8000/synchronize \
+	curl -X POST http://localhost:8080/v1/map/$(map_name)/synchronize \
 		-H 'Content-Type: application/json' \
-		-d '{"map_name":"$(map_name)","bucket_name":"$(bucket)", "bucket_file_name":"gcs.json"}'
+		-d '{"bucket_name":"$(bucket)", "bucket_file_name":"gcs.json"}'
+
+generate:
+	curl -X GET http://localhost:8080/v1/map/$(map_name)/generate
 
 swagger:
 	swag init
