@@ -73,3 +73,5 @@ If everything is successful, you should see the following message:
 ...
 {"status":"synchronization success."}
 ```
+
+Swagger UI is accessible at http://localhost:8080/swagger/index.html.
