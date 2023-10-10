@@ -1,4 +1,4 @@
-package controllers
+package handlers
 
 import (
 	"encoding/json"
@@ -7,86 +7,91 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/matthisholleville/mapsyncproxy/api/client"
 	"github.com/matthisholleville/mapsyncproxy/pkg/gcs"
 	"github.com/matthisholleville/mapsyncproxy/pkg/haproxy"
-	"github.com/matthisholleville/mapsyncproxy/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type SynchronizeRequestBody struct {
-	MapName        string `json:"map_name"`
-	BucketName     string `json:"bucket_name"`
-	BucketFileName string `json:"bucket_file_name"`
+	MapName        string `json:"map_name"  validate:"required,map_name"`
+	BucketName     string `json:"bucket_name" validate:"required,bucket_name"`
+	BucketFileName string `json:"bucket_file_name" validate:"required,bucket_file_name"`
 }
 
-func (r *SynchronizeRequestBody) AreFieldsNotEmpty() bool {
-	return r.MapName != "" && r.BucketName != "" && r.BucketFileName != ""
-}
+// Synchronize godoc
+//
+//	@Tags			Synchronization
+//	@Summary		Synchronize GCS file to an HAProxy map file.
+//	@Description	Synchronize GCS file to an HAProxy map file.
+//	@Accept			json
+//	@Produce		json
+//	@Param		_			body	SynchronizeRequestBody	true	"Data of the synchronisation endpoint"
+//
+// @Success		200
+// @Failure		500		"Internal Server Error"
+// @Router			/v1/synchronize [post]
+func Synchronize(c echo.Context) (err error) {
 
-func Synchronize(c echo.Context, h *haproxy.Client, g *gcs.GCSClientWrapper, m *metrics.ServerMetrics) (err error) {
-
+	mapSyncContext := c.Get("mapSyncContext").(*client.MapSyncProxyAPI)
 	requestBody := SynchronizeRequestBody{}
 
 	if err := c.Bind(&requestBody); err != nil {
 		return c.JSON(http.StatusBadRequest, jsonResponse("Error reading JSON request body."))
 	}
 
-	if !requestBody.AreFieldsNotEmpty() {
-		return c.JSON(http.StatusBadRequest, jsonResponse("All fields (map_name, bucket_name, bucket_file_name) are required in the request body."))
-	}
-
-	m.SynchronizationTotalCount.With(setMetricsStatusLabels("processed", requestBody.MapName)).Inc()
+	mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("processed", requestBody.MapName)).Inc()
 
 	// Get MapEntries file from GCS
-	gcsEntries, err := getGCSJsonFile(g, requestBody.BucketName, requestBody.BucketFileName)
+	gcsEntries, err := getGCSJsonFile(mapSyncContext.GCSClientWrapper, requestBody.BucketName, requestBody.BucketFileName)
 	if err != nil {
-		m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
 	}
 
 	// Get HAProxy entries from map
-	haproxyEntries, err := h.GetMapEntries(requestBody.MapName)
+	haproxyEntries, err := mapSyncContext.HAProxyClient.GetMapEntries(requestBody.MapName)
 	if err != nil {
-		m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The entries from the HAProxy Map file could not be retrieved or interpreted."))
 	}
 
 	// If Not Exist CreateMap
 	entriesToBeCreated := findDifference(*gcsEntries, *haproxyEntries)
 	for _, entrie := range entriesToBeCreated {
-		_, err = h.CreateMapEntrie(&entrie, requestBody.MapName)
+		_, err = mapSyncContext.HAProxyClient.CreateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be created.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(setMetricsStatusLabels("created", requestBody.MapName)).Inc()
+		mapSyncContext.ServerMetrics.MapEntriesTotalCount.With(setMetricsStatusLabels("created", requestBody.MapName)).Inc()
 	}
 
 	// If Not Exist in gcs file DeleteMap
 	entriesToBeDeleted := findDifference(*haproxyEntries, *gcsEntries)
 	for _, entrie := range entriesToBeDeleted {
-		_, err = h.DeleteMapEntrie(&entrie, requestBody.MapName)
+		_, err = mapSyncContext.HAProxyClient.DeleteMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be deleted.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(setMetricsStatusLabels("deleted", requestBody.MapName)).Inc()
+		mapSyncContext.ServerMetrics.MapEntriesTotalCount.With(setMetricsStatusLabels("deleted", requestBody.MapName)).Inc()
 	}
 
 	// If Exist and not already processed UpdateMap
 	entriesAlreadyProcessed := append(entriesToBeCreated, entriesToBeDeleted...)
 	entriesToBeUpdated := findDifference(*gcsEntries, *&entriesAlreadyProcessed)
 	for _, entrie := range entriesToBeUpdated {
-		_, err = h.UpdateMapEntrie(&entrie, requestBody.MapName)
+		_, err = mapSyncContext.HAProxyClient.UpdateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
-			m.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
+			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be updated.", entrie.Key)))
 		}
-		m.MapEntriesTotalCount.With(setMetricsStatusLabels("updated", requestBody.MapName)).Inc()
+		mapSyncContext.ServerMetrics.MapEntriesTotalCount.With(setMetricsStatusLabels("updated", requestBody.MapName)).Inc()
 	}
 
 	// Return success
-	m.SynchronizationTotalCount.With(setMetricsStatusLabels("success", requestBody.MapName)).Inc()
+	mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("success", requestBody.MapName)).Inc()
 	return c.JSON(http.StatusOK, jsonResponse("synchronization success."))
 }
 

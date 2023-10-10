@@ -1,0 +1,66 @@
+definitions:
+  handlers.SynchronizeRequestBody:
+    properties:
+      bucket_file_name:
+        type: string
+      bucket_name:
+        type: string
+      map_name:
+        type: string
+    required:
+    - bucket_file_name
+    - bucket_name
+    - map_name
+    type: object
+info:
+  contact: {}
+paths:
+  /healthz:
+    get:
+      consumes:
+      - '*/*'
+      description: Health.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      summary: Health.
+      tags:
+      - Monitoring
+  /readyz:
+    get:
+      consumes:
+      - '*/*'
+      description: Ready.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      summary: Ready.
+      tags:
+      - Monitoring
+  /v1/synchronize:
+    post:
+      consumes:
+      - application/json
+      description: Synchronize GCS file to an HAProxy map file.
+      parameters:
+      - description: Data of the synchronisation endpoint
+        in: body
+        name: _
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SynchronizeRequestBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "500":
+          description: Internal Server Error
+      summary: Synchronize GCS file to an HAProxy map file.
+      tags:
+      - Synchronization
+swagger: "2.0"

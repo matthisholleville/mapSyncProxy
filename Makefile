@@ -13,3 +13,6 @@ synchronize:
 	curl -X POST http://localhost:8000/synchronize \
 		-H 'Content-Type: application/json' \
 		-d '{"map_name":"$(map_name)","bucket_name":"$(bucket)", "bucket_file_name":"gcs.json"}'
+
+swagger:
+	swag init

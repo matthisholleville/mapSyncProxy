@@ -1,8 +1,20 @@
 package main
 
-import "github.com/matthisholleville/mapsyncproxy/server"
+import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/matthisholleville/mapsyncproxy/api"
+)
+
+var (
+	sigs = make(chan os.Signal, 1)
+)
 
 func main() {
-	s := server.New()
-	s.Start(":8000")
+	ctx := context.Background()
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	api.Server(ctx, sigs)
 }
