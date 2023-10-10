@@ -11,6 +11,7 @@ import (
 	"github.com/matthisholleville/mapsyncproxy/pkg/gcs"
 	"github.com/matthisholleville/mapsyncproxy/pkg/haproxy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog/log"
 )
 
 type SynchronizeRequestBody struct {
@@ -45,12 +46,14 @@ func Synchronize(c echo.Context) (err error) {
 	// Get MapEntries file from GCS
 	gcsEntries, err := getGCSJsonFile(mapSyncContext.GCSClientWrapper, requestBody.BucketName, requestBody.BucketFileName)
 	if err != nil {
+		log.Debug().Err(err).Msg("The GCS file could not be downloaded or interpreted.")
 		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
 	}
 
 	// Check if duplicate keys
 	if hasDuplicateKeys(*gcsEntries) {
+		log.Debug().Msg("The GCS file could not be downloaded or interpreted.")
 		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file contains duplicate keys."))
 	}
@@ -58,6 +61,7 @@ func Synchronize(c echo.Context) (err error) {
 	// Get HAProxy entries from map
 	haproxyEntries, err := mapSyncContext.HAProxyClient.GetMapEntries(requestBody.MapName)
 	if err != nil {
+		log.Debug().Err(err).Msg("The entries from the HAProxy Map file could not be retrieved or interpreted.")
 		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 		return c.JSON(http.StatusInternalServerError, jsonResponse("The entries from the HAProxy Map file could not be retrieved or interpreted."))
 	}
@@ -67,6 +71,7 @@ func Synchronize(c echo.Context) (err error) {
 	for _, entrie := range entriesToBeCreated {
 		_, err = mapSyncContext.HAProxyClient.CreateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
+			log.Debug().Err(err).Msgf("The '%s' entry could not be created.", entrie.Key)
 			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be created.", entrie.Key)))
 		}
@@ -78,6 +83,7 @@ func Synchronize(c echo.Context) (err error) {
 	for _, entrie := range entriesToBeDeleted {
 		_, err = mapSyncContext.HAProxyClient.DeleteMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
+			log.Debug().Err(err).Msgf("The '%s' entry could not be deleted.", entrie.Key)
 			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be deleted.", entrie.Key)))
 		}
@@ -90,6 +96,7 @@ func Synchronize(c echo.Context) (err error) {
 	for _, entrie := range entriesToBeUpdated {
 		_, err = mapSyncContext.HAProxyClient.UpdateMapEntrie(&entrie, requestBody.MapName)
 		if err != nil {
+			log.Debug().Err(err).Msgf("The '%s' entry could not be updated.", entrie.Key)
 			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", requestBody.MapName)).Inc()
 			return c.JSON(http.StatusInternalServerError, jsonResponse(fmt.Sprintf("The '%s' entry could not be updated.", entrie.Key)))
 		}
