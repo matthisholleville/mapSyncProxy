@@ -64,8 +64,11 @@ make push
 To start synchronization, execute the following command:
 
 ```bash
-make synchronize map_name=rate-limits bucket=$MY_BUCKET_NAME
+make synchronize map_name=rate-limits bucket=$MY_BUCKET_NAME bucket_file_name=gcs.json
 ```
+
+
+_You can reconcile all files in a bucket by specifying `"*"` in the `bucket_file_name` field. The proxy will take care of downloading all the json files and reconciling (merging) them._
 
 If everything is successful, you should see the following message:
 

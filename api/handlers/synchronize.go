@@ -50,12 +50,28 @@ func Synchronize(c echo.Context) (err error) {
 
 	mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("processed", mapName)).Inc()
 
-	// Get MapEntries file from GCS
-	gcsEntries, err := getGCSJsonFile(mapSyncContext.GCSClientWrapper, requestBody.BucketName, requestBody.BucketFileName)
-	if err != nil {
-		log.Debug().Err(err).Msg("The GCS file could not be downloaded or interpreted.")
-		mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", mapName)).Inc()
-		return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
+	gcsEntries := &[]haproxy.MapEntrie{}
+
+	if requestBody.BucketFileName == "*" {
+		log.Info().Msgf("Multiple GCS files from %s bucket will be downloaded.", requestBody.BucketName)
+		// Get MapEntries files from GCS
+		gcsEntries, err = downloadMultipleFiles(mapSyncContext.GCSClientWrapper, requestBody.BucketName)
+		if err != nil {
+			log.Debug().Err(err).Msg("The GCS files could not be listed.")
+			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", mapName)).Inc()
+			return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS files could not be listed."))
+		}
+
+	} else {
+		log.Info().Msgf("The GCS file %s from the %s bucket will be downloaded", requestBody.BucketFileName, requestBody.BucketName)
+		// Get MapEntries file from GCS
+		gcsEntries, err = getGCSJsonFile(mapSyncContext.GCSClientWrapper, requestBody.BucketName, requestBody.BucketFileName)
+		if err != nil {
+			log.Debug().Err(err).Msg("The GCS file could not be downloaded or interpreted.")
+			mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("error", mapName)).Inc()
+			return c.JSON(http.StatusInternalServerError, jsonResponse("The GCS file could not be downloaded or interpreted."))
+		}
+
 	}
 
 	// Check if duplicate keys
@@ -115,18 +131,41 @@ func Synchronize(c echo.Context) (err error) {
 	return c.JSON(http.StatusOK, jsonResponse("synchronization success."))
 }
 
+func downloadMultipleFiles(g *gcs.GCSClientWrapper, bucketName string) (*[]haproxy.MapEntrie, error) {
+	gcsFiles, err := g.ListFiles(bucketName)
+	if err != nil {
+		return nil, err
+	}
+	result := []haproxy.MapEntrie{}
+	for _, file := range *gcsFiles {
+		if file.ContentType == "application/json" {
+			gcsEntries, err := getGCSJsonFile(g, bucketName, file.Name)
+			if err != nil {
+				return nil, err
+			}
+			log.Info().Msgf("%s file downloaded successfully. %d entrie(s) found", file.Name, len(*gcsEntries))
+			result = append(result, *gcsEntries...)
+		}
+
+	}
+	return &result, nil
+}
+
 func getGCSJsonFile(g *gcs.GCSClientWrapper, bucketName, fileName string) (*[]haproxy.MapEntrie, error) {
 	rc, err := g.DownloadFile(bucketName, fileName)
 	if err != nil {
+		log.Err(err).Msgf("Unable to download %s", fileName)
 		return nil, err
 	}
 	data, err := io.ReadAll(rc)
 	if err != nil {
+		log.Err(err).Msgf("Unable to read %s", fileName)
 		return nil, err
 	}
 	var mapEntries []haproxy.MapEntrie
 	err = json.Unmarshal(data, &mapEntries)
 	if err != nil {
+		log.Err(err).Msgf("Unable to Unmarshal %s", fileName)
 		return nil, err
 	}
 	return &mapEntries, nil
