@@ -90,7 +90,7 @@ func Synchronize(c echo.Context) (err error) {
 	}
 
 	// If Not Exist CreateMap
-	entriesToBeCreated := findDifference(*gcsEntries, *haproxyEntries)
+	entriesToBeCreated := findDifference(*gcsEntries, *haproxyEntries, "")
 	for _, entrie := range entriesToBeCreated {
 		_, err = mapSyncContext.HAProxyClient.CreateMapEntrie(&entrie, mapName)
 		if err != nil {
@@ -102,7 +102,7 @@ func Synchronize(c echo.Context) (err error) {
 	}
 
 	// If Not Exist in gcs file DeleteMap
-	entriesToBeDeleted := findDifference(*haproxyEntries, *gcsEntries)
+	entriesToBeDeleted := findDifference(*haproxyEntries, *gcsEntries, "")
 	for _, entrie := range entriesToBeDeleted {
 		_, err = mapSyncContext.HAProxyClient.DeleteMapEntrie(&entrie, mapName)
 		if err != nil {
@@ -115,7 +115,8 @@ func Synchronize(c echo.Context) (err error) {
 
 	// If Exist and not already processed UpdateMap
 	entriesAlreadyProcessed := append(entriesToBeCreated, entriesToBeDeleted...)
-	entriesToBeUpdated := findDifference(*gcsEntries, *&entriesAlreadyProcessed)
+	entriesNotProcessed := findDifference(*gcsEntries, *&entriesAlreadyProcessed, "")
+	entriesToBeUpdated := findDifference(entriesNotProcessed, *haproxyEntries, "full")
 	for _, entrie := range entriesToBeUpdated {
 		_, err = mapSyncContext.HAProxyClient.UpdateMapEntrie(&entrie, mapName)
 		if err != nil {
@@ -127,6 +128,7 @@ func Synchronize(c echo.Context) (err error) {
 	}
 
 	// Return success
+	log.Info().Msgf("Synchronization success. %d created - %d updated - %d deleted", len(entriesToBeCreated), len(entriesToBeUpdated), len(entriesToBeDeleted))
 	mapSyncContext.ServerMetrics.SynchronizationTotalCount.With(setMetricsStatusLabels("success", mapName)).Inc()
 	return c.JSON(http.StatusOK, jsonResponse("synchronization success."))
 }
@@ -172,7 +174,7 @@ func getGCSJsonFile(g *gcs.GCSClientWrapper, bucketName, fileName string) (*[]ha
 
 }
 
-func findDifference(array1, array2 []haproxy.MapEntrie) []haproxy.MapEntrie {
+func findDifference(array1, array2 []haproxy.MapEntrie, diffType string) []haproxy.MapEntrie {
 	difference := []haproxy.MapEntrie{}
 
 	map2 := make(map[string]haproxy.MapEntrie)
@@ -180,10 +182,23 @@ func findDifference(array1, array2 []haproxy.MapEntrie) []haproxy.MapEntrie {
 		map2[item.Key] = item
 	}
 
-	for _, item := range array1 {
-		if _, exists := map2[item.Key]; !exists {
-			difference = append(difference, item)
+	if diffType == "full" {
+		for _, item := range array1 {
+			if _, exists := map2[item.Key]; exists {
+				if map2[item.Key].Value != item.Value {
+					difference = append(difference, item)
+				}
+			} else {
+				difference = append(difference, item)
+			}
 		}
+	} else {
+		for _, item := range array1 {
+			if _, exists := map2[item.Key]; !exists {
+				difference = append(difference, item)
+			}
+		}
+
 	}
 
 	return difference
